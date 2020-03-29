@@ -29,6 +29,7 @@ module Payflow
       @year   = options[:year]
       @first_name = options[:first_name]
       @last_name  = options[:last_name]
+      @security_code = options[:security_code]
       @encrypted_track_data = options[:encrypted_track_data]
 
       self.track2    = options[:track2]

@@ -10,6 +10,7 @@ module Payflow
     def successful?
       result[:result] == "0"
     end
+    alias :success? :successful?
 
     def message
       result[:respmsg]

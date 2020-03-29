@@ -81,7 +81,6 @@ module Payflow
 
     def add_credit_card!(credit_card)
       pairs.card_type = credit_card_type(credit_card)
-
       if credit_card.encrypted?
         add_encrypted_credit_card!(credit_card)
       elsif credit_card.track2.present?
