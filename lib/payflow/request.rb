@@ -12,12 +12,20 @@ module Payflow
   }
 
   TRANSACTIONS = {
-    :sale           => "S",
-    :authorization  => "A",
-    :capture        => "D",
-    :void           => "V",
-    :credit         => "C",
-    :inquire        => "I"
+    :sale             => "S",
+    :authorization    => "A",
+    :capture          => "D",
+    :void             => "V",
+    :credit           => "C",
+    :inquire          => "I",
+    :generate_token   => "S",
+    :checkout_details => "S",
+    :checkout_payment => "S"
+  }
+
+  ACTIONS = {
+    :checkout_details => 'G',
+    :checkout_payment => 'D'
   }
 
   DEFAULT_CURRENCY = "USD"
@@ -27,7 +35,10 @@ module Payflow
   REGISTERED_BY         = "PayPal"
   ENCRYPTION_BLOCK_TYPE = 1
 
-  CREDIT_CARD_TENDER  = 'C'
+  CREDIT_CARD_TENDER      = 'C'
+  GENERATE_TOKEN_TENDER   = 'P'
+  CHECKOUT_DETAILS_TENDER = 'P'
+  CHECKOUT_PAYMENT_TENDER = 'P'
 
   class Request
     attr_accessor :pairs, :options
@@ -37,10 +48,12 @@ module Payflow
     TEST_HOST = 'pilot-payflowpro.paypal.com'
     LIVE_HOST = 'payflowpro.paypal.com'
 
-    def initialize(action, money, payflow_credit_card, _options = {})
+    LIVE_PAYPAL_CHECKOUT_HOST = "https://www.paypal.com/checkoutnow"
+    TEST_PAYPAL_CHECKOUT_HOST = "https://www.sandbox.paypal.com/checkoutnow"
+
+    def initialize(action, money, payflow_credit_card = nil, _options = {})
       self.options = _options
       money = cast_amount(money)
-
       self.pairs   = initial_pairs(action, money, options[:pairs])
 
       case action
@@ -58,6 +71,12 @@ module Payflow
         else
           build_credit_card_request(action, money, payflow_credit_card, options)
         end
+      when :generate_token
+        build_generate_token_request(action, options)
+      when :checkout_details
+        build_checkout_details_request(action, options)
+      when :checkout_payment
+        build_checkout_payment_request(action, options)
       end
     end
 
@@ -67,6 +86,52 @@ module Payflow
       else
         build_credit_card_request(action, money, payflow_credit_card, options)
       end
+    end
+
+    def build_generate_token_request(action, options = {})
+      pairs.tender = GENERATE_TOKEN_TENDER
+      pairs.action = TRANSACTIONS[action]
+      pairs.currency = options[:currency] || DEFAULT_CURRENCY
+      pairs.returnurl = test? ? "http://localhost:3000/error" : "#{ LIVE_PAYPAL_CHECKOUT_HOST }/error"
+      pairs.cancelurl = test? ? "http://localhost:3000/cancel" : "#{ LIVE_PAYPAL_CHECKOUT_HOST }/cancel"
+      pairs.orderdesc = options[:desc] || 'Payflow order transaction'
+      pairs.invnum = options[:number] || "INX123"
+
+      pairs
+    end
+
+    def build_checkout_details_request(action, options = {})
+      pairs.tender = CHECKOUT_DETAILS_TENDER
+      pairs.action = ACTIONS[action]
+      pairs.token = options[:order_id]
+
+      pairs
+    end
+
+    def build_checkout_payment_request(action, options = {})
+      pairs.tender = CHECKOUT_PAYMENT_TENDER
+      pairs.action = ACTIONS[action]
+      pairs.token = options[:order_id]
+      pairs.payerid = options[:payer_id]
+      pairs.currency = options[:currency] || 'USD'
+      pairs.orderdesc = options[:desc] || 'Payflow order transaction'
+      pairs.taxamt = options[:tax_amount] || 0
+      pairs.itemamt = options[:total_item_amount] || 0
+      pairs.freightamt = 0
+      pairs.discount = options[:discount_amount] || 0
+
+      if options[:order_line_items].present?
+        options[:order_line_items].each_with_index do |line_item, index|
+          pairs["l_name#{ index }".to_sym] = line_item[:name]
+          pairs["l_desc#{ index }".to_sym] = ""
+          pairs["l_itemnumber#{ index }".to_sym] = line_item[:slug]
+          pairs["l_cost#{ index }".to_sym] = line_item[:price]
+          pairs["l_taxamt#{ index }".to_sym] = 0
+          pairs["l_qty#{ index }".to_sym] = line_item[:quantity]
+        end
+      end
+
+      pairs
     end
 
     def build_credit_card_request(action, money, credit_card, options)

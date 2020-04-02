@@ -22,7 +22,8 @@ module Payflow
     end
 
     def request(action, money, credit_card_or_reference, options)
-      reference = Payflow::CreditCardAdapter.run(credit_card_or_reference)
+      reference = nil
+      reference = Payflow::CreditCardAdapter.run(credit_card_or_reference) if credit_card_or_reference.present?
       Payflow::Request.new(action, money, reference, options.merge(@options))
     end
 
@@ -65,6 +66,18 @@ module Payflow
       end
 
       response
+    end
+
+    def generate_token(money = 1, options = {})
+      request(:generate_token, money, nil, options).commit(options)
+    end
+
+    def checkout_details(options = {})
+      request(:checkout_details, nil, nil, options).commit(options)
+    end
+
+    def checkout_payment(money, options = {})
+      request(:checkout_payment, money, nil, options).commit(options)
     end
 
     private
