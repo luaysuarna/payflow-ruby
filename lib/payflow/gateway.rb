@@ -80,6 +80,10 @@ module Payflow
       request(:checkout_payment, money, nil, options).commit(options)
     end
 
+    def paypal_sale(money, origid, options = {})
+      request(:paypal_sale, money, origid, options).commit(options)
+    end
+
     private
       def self.requires!(object, *required_fields)
         required_fields.each do |field|

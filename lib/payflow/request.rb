@@ -20,12 +20,14 @@ module Payflow
     :inquire          => "I",
     :generate_token   => "S",
     :checkout_details => "S",
-    :checkout_payment => "S"
+    :checkout_payment => "S",
+    :paypal_sale      => "S"
   }
 
   ACTIONS = {
     :checkout_details => 'G',
-    :checkout_payment => 'D'
+    :checkout_payment => 'D',
+    :paypal_sale      => 'D'
   }
 
   DEFAULT_CURRENCY = "USD"
@@ -39,6 +41,7 @@ module Payflow
   GENERATE_TOKEN_TENDER   = 'P'
   CHECKOUT_DETAILS_TENDER = 'P'
   CHECKOUT_PAYMENT_TENDER = 'P'
+  PAYPAL_SALE_TENDER      = 'P'
 
   class Request
     attr_accessor :pairs, :options
@@ -54,7 +57,7 @@ module Payflow
     def initialize(action, money, payflow_credit_card = nil, _options = {})
       self.options = _options
       money = cast_amount(money)
-      self.pairs   = initial_pairs(action, money, options[:pairs])
+      self.pairs   = initial_pairs(action, money, options[:currency], options[:pairs])
 
       case action
       when :sale, :authorization
@@ -77,6 +80,8 @@ module Payflow
         build_checkout_details_request(action, options)
       when :checkout_payment
         build_checkout_payment_request(action, options)
+      when :paypal_sale
+        build_paypal_sale(action, payflow_credit_card, options)
       end
     end
 
@@ -91,7 +96,6 @@ module Payflow
     def build_generate_token_request(action, options = {})
       pairs.tender = GENERATE_TOKEN_TENDER
       pairs.action = TRANSACTIONS[action]
-      pairs.currency = options[:currency] || DEFAULT_CURRENCY
       pairs.returnurl = test? ? "http://localhost:3000/error" : "#{ LIVE_PAYPAL_CHECKOUT_HOST }/error"
       pairs.cancelurl = test? ? "http://localhost:3000/cancel" : "#{ LIVE_PAYPAL_CHECKOUT_HOST }/cancel"
       pairs.orderdesc = options[:desc] || 'Payflow order transaction'
@@ -108,12 +112,20 @@ module Payflow
       pairs
     end
 
+    def build_paypal_sale(action, origid, options = {})
+      pairs.action = ACTIONS[action]
+      pairs.tender = PAYPAL_SALE_TENDER
+      pairs.origid = origid
+      pairs.capturecomplete = 'Y'
+
+      pairs
+    end
+
     def build_checkout_payment_request(action, options = {})
       pairs.tender = CHECKOUT_PAYMENT_TENDER
       pairs.action = ACTIONS[action]
       pairs.token = options[:order_id]
       pairs.payerid = options[:payer_id]
-      pairs.currency = options[:currency] || 'USD'
       pairs.orderdesc = options[:desc] || 'Payflow order transaction'
       pairs.taxamt = options[:tax_amount] || 0
       pairs.itemamt = options[:total_item_amount] || 0
@@ -217,11 +229,14 @@ module Payflow
         request.headers["Host"] = test? ? TEST_HOST : LIVE_HOST
       end
 
-      def initial_pairs(action, money, optional_pairs = {})
+      def initial_pairs(action, money, currency = nil, optional_pairs = {})
         struct = OpenStruct.new(
           trxtype: TRANSACTIONS[action]
         )
-        struct.amt = money if money and money.to_f > 0
+        if money and money.to_f > 0
+          struct.amt = money
+          struct.currency = currency || DEFAULT_CURRENCY
+        end
         if optional_pairs
           optional_pairs.each do |key, value|
             struct.send("#{key}=", value)
