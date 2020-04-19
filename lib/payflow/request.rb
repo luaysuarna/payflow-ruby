@@ -57,7 +57,7 @@ module Payflow
     def initialize(action, money, payflow_credit_card = nil, _options = {})
       self.options = _options
       money = cast_amount(money)
-      self.pairs   = initial_pairs(action, money, options[:currency], options[:pairs])
+      self.pairs   = initial_pairs(action, money, options[:pairs])
 
       case action
       when :sale, :authorization
@@ -117,6 +117,7 @@ module Payflow
       pairs.tender = PAYPAL_SALE_TENDER
       pairs.origid = origid
       pairs.capturecomplete = 'Y'
+      pairs.currency = options[:currency] || DEFAULT_CURRENCY
 
       pairs
     end
@@ -131,6 +132,7 @@ module Payflow
       pairs.itemamt = options[:total_item_amount] || 0
       pairs.freightamt = 0
       pairs.discount = options[:discount_amount] || 0
+      pairs.currency = options[:currency] || DEFAULT_CURRENCY
 
       if options[:order_line_items].present?
         options[:order_line_items].each_with_index do |line_item, index|
@@ -147,7 +149,9 @@ module Payflow
     end
 
     def build_credit_card_request(action, money, credit_card, options)
-      pairs.tender = CREDIT_CARD_TENDER
+      pairs.tender   = CREDIT_CARD_TENDER
+      pairs.currency = options[:currency] || DEFAULT_CURRENCY
+
       add_credit_card!(credit_card)
     end
 
@@ -229,13 +233,12 @@ module Payflow
         request.headers["Host"] = test? ? TEST_HOST : LIVE_HOST
       end
 
-      def initial_pairs(action, money, currency = nil, optional_pairs = {})
+      def initial_pairs(action, money, optional_pairs = {})
         struct = OpenStruct.new(
           trxtype: TRANSACTIONS[action]
         )
         if money and money.to_f > 0
           struct.amt = money
-          struct.currency = currency || DEFAULT_CURRENCY
         end
         if optional_pairs
           optional_pairs.each do |key, value|
