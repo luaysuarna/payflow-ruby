@@ -100,6 +100,7 @@ module Payflow
       pairs.cancelurl = test? ? "http://localhost:3000/cancel" : "#{ LIVE_PAYPAL_CHECKOUT_HOST }/cancel"
       pairs.orderdesc = options[:desc] || 'Payflow order transaction'
       pairs.invnum = options[:number] || "INX123"
+      pairs.currency = options[:currency] || DEFAULT_CURRENCY
 
       pairs
     end
